@@ -1,0 +1,47 @@
+#!/bin/sh
+
+ProjectName=''
+# Backslashes used because forward slashes cause robocopy not to work.
+LogDirectoryFull=''
+SourceDirectory="$ProjectName"
+DropboxDirectory=''
+
+CommitVersion=`git rev-parse --verify HEAD`
+DropboxBinary='C:\Program Files (x86)\Dropbox\Client\Dropbox.exe'
+DropboxProjectDirectory="$DropboxDirectory/GameDevelopment/$ProjectName"
+DestinationDirectory="$DropboxProjectDirectory/$CommitVersion/Content"
+
+if [[ ! -a "$DropboxBinary" ]]
+then
+    echo "Dropbox binary not found!"
+    exit
+fi
+if [[ ! -d "$DropboxDirectory" ]]
+then
+    echo "Dropbox directory: $DropboxDirectory not found!"
+    exit
+fi
+if [[ ! -d "$SourceDirectory" ]]
+then
+    echo "Source directory not found!"
+    exit
+fi
+
+if [[ -d "$DropboxProjectDirectory" ]]
+then
+    while [[ $(ls -l "$DropboxProjectDirectory" | grep -c ^d) -ge 5 ]]
+    do
+        SortedDirectrories=( $(find "$DropboxProjectDirectory" -mindepth 1 -maxdepth 1 -type d -printf '%T+\t%p\n' | sort) )
+        echo "Deleting ${SortedDirectrories[1]}."
+        rm -rf ${SortedDirectrories[1]}
+    done
+fi
+echo 'Performing binary asset sync'
+echo "Performing RoboCopy -FROM $SourceDirectory -TO $DestinationDirectory"
+robocopy "$SourceDirectory" "$DestinationDirectory" //MIR //LOG:"$LogDirectoryFull" //np > /dev/null 2>&1
+DropboxProcess=$(powershell Get-Process -Name Dropbox -EA SilentlyContinue)
+if [ -z "$DropboxProcess" ]
+then
+    echo 'Opening Dropbox'
+    powershell -command "& {Start-Process '$DropboxBinary'}"
+fi
